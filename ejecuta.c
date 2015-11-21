@@ -15,21 +15,24 @@ int main(int argc, char *argv[]) {
 	char string[1024];
 	tline *tokens;
 	while(1){
+		printf("msh> ");
 		if(fgets(string, sizeof(string), stdin)){
 			tokens = tokenize(string);
+
+			
 			mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-			int fichero = creat(tokens->redirect_output, mode);
+			int fichero;
 			pid = fork();
 			if (pid<0) {
 				fprintf(stderr,"Falló el fork");	
 				exit(-1);
 			} else if (pid == 0) {		//Proceso hijo
-				//int fichero;
 				if(tokens->redirect_output!=NULL){
+					fichero = open(tokens->redirect_output, O_CREAT | O_WRONLY, mode);
 					int out=dup(1);			//copia de seguridad salida estandar
 					dup2(fichero,1);
 				} else if(tokens->redirect_input!=NULL){
-					fichero = creat(tokens->redirect_input, 0666);
+					fichero = open(tokens->redirect_input, O_CREAT | O_RDONLY, mode);
 					int in=dup(0);
 					dup2(fichero, 0);
 				}
