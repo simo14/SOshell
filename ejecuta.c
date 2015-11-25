@@ -18,45 +18,71 @@ int main(int argc, char *argv[]) {
 		printf("msh> ");
 		if(fgets(string, sizeof(string), stdin)){
 			tokens = tokenize(string);
-
-			
-			mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
-			int fichero;
-			pid = fork();
-			if (pid<0) {
-				fprintf(stderr,"Falló el fork");	
-				exit(-1);
-			} else if (pid == 0) {		//Proceso hijo
-				if(tokens->redirect_output!=NULL){
-					fichero = open(tokens->redirect_output, O_CREAT | O_WRONLY, mode);
-					int out=dup(1);			//copia de seguridad salida estandar
-					dup2(fichero,1);
-				} else if(tokens->redirect_input!=NULL){
-					fichero = open(tokens->redirect_input, O_CREAT | O_RDONLY, mode);
-					int in=dup(0);
-					dup2(fichero, 0);
-				}
-				close(fichero);
-				execvp(tokens->commands->filename, tokens->commands->argv);	
-				fflush(stdout);
-				printf("Error al ejecutar el comando: %s\n", strerror(errno));
-				exit(-1);
-			} else {				//Proceso padre
-				wait(NULL);
-				if(WIFEXITED(status)!=0) {	//salida anormal	
-					if(WEXITSTATUS(status)!=0) {
-						printf("El comando no se ha ejecutado correctamente");
-					}else {
-						exit(0);
+			if(tokens==NULL){		//Tokenize fault. If not checked it will lead to 
+							//segmentation fault in the case of empty redirect argument ex: "ls >"
+				char stringnew[1024];
+				printf("%.*s: No se encuentra el mandato\n", strlen(string)-1, string);
+				continue;
+			}
+			if(tokens->ncommands>=1){
+				int i=tokens->ncommands;
+				while(i>0){
+					pid = fork();
+					if (pid<0) {
+						fprintf(stderr,"Falló el fork");	
+						continue;
+					} else if (pid == 0) {			//Son process
+						if(redireccion(tokens)!=0){
+							continue;
+						}
+						execvp(tokens->commands->filename, tokens->commands->argv);	
+						printf("Error al ejecutar el comando: %s\n", strerror(errno));
+						exit(-1);
+					} else {				//Father process
+						wait(NULL);
+						if(WIFEXITED(status)!=0) {	//Abnormal exit	
+							if(WEXITSTATUS(status)!=0) {
+								printf("El comando no se ha ejecutado correctamente");
+							}else {
+								exit(0);
+							}
+						printf("Se ha producido un error\n");
+						printf("El comando no se ha ejecutado correctamente\n"); 
+						exit(-1);
+						}
 					}
-				printf("Se ha producido un error\n");
-				printf("El comando no se ha ejecutado correctamente\n"); 
-				exit(-1);
+					i--;
 				}
 			}
 		}else {	//TODO INPUT MALO PETA
 				fprintf(stderr, "Input error.");
-				return -1;
+				continue;
 			}
 	}
+	return 0;
+}
+
+
+int redireccion(tline *tokens) {
+	mode_t mode = S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH;
+	int fichero;
+	if(tokens->redirect_output!=NULL){
+		fichero = open(tokens->redirect_output, O_CREAT | O_WRONLY, mode);
+		if(fichero<1){
+			printf("%s: Error. No se ha podido crear o abrir el fichero especificado\n", tokens->redirect_output);
+			return -1;
+		}
+		int out=dup(1);			//Security copy of stdout
+		dup2(fichero,1);
+	} else if(tokens->redirect_input!=NULL){
+		fichero = open(tokens->redirect_input, O_RDONLY, mode);
+		if(fichero<1){
+			printf("%s: Error. No se ha podido abrir el fichero especificado para lectura\n", tokens->redirect_input);
+			return -1;
+		}
+		int in=dup(0);			//Security copy of stdin
+		dup2(fichero, 0);
+	}
+	close(fichero);
+	return 0;
 }
