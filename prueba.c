@@ -20,7 +20,7 @@ int main () {
 	for(i = 0; i<n; i++){
 		pid[i] = fork();
 		if(pid[i]==0){
-			if((i<n)&&(i>0)){				//Problema: hace un pipe cada vez. en i=0 hace el primer pipe y exec. la salida del pipe ni siquiera está asignada
+			if((i<n-1)&&(i>0)){				//Problema: hace un pipe cada vez. en i=0 hace el primer pipe y exec. la salida del pipe ni siquiera está asignada
 				dup2(pipeta[i-1][0],0);
 				printf("id %d comes from pipeta %d",i,i-1);
 				dup2(pipeta[i][1],1);
