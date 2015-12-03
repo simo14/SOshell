@@ -36,7 +36,7 @@ int main () {
 				execlp("ls","ls", NULL);
 			}else{
 				fputs("grep ",stderr);
-				execlp("grep","grep","p", NULL);
+				execlp("grep", "grep","u", NULL);
 			}
 		}
 	}
