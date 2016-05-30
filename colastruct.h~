@@ -1,0 +1,17 @@
+#ifndef colastruc_H_INCLUDED		//avoids including the same header file twice in the same compilation
+#define colastruc_H_INCLUDED
+	typedef struct {
+		char * commands;
+		struct tprocess * next;
+	} tprocess;
+
+	typedef struct {
+		struct tprocess * first;
+		struct tprocess * last;
+	} tprocessList
+	
+	*tprocessList newList();
+	int removeProcess (int n);
+	int addProcess (struct *tprocessList list, char * commands);
+	
+#endif

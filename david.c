@@ -9,6 +9,7 @@
 #include <sys/stat.h>
 #include <signal.h>
 #include "parser.h"
+#include "processList.h"
 
 //Constants
 static const char PROMPT[] = "msh>>";
@@ -29,13 +30,15 @@ void sigquitHandler (int sig) {
 	}
 }
 
+/* MAIN LOOP: prints the prompt and reads the input */
+
 int main() {
 	//Init vars
 	char input[1024];
 	tline *tokens;
 	int exit = 0;
 
-	//signal(SIGINT, sigintHandler);
+	//signal(SIGINT, sigintHandler); decomment once done "QUIT" command
 	signal(SIGQUIT, sigquitHandler);
 
 	do{
