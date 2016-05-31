@@ -8,57 +8,96 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <signal.h>
+#include <string.h>
 #include "parser.h"
+#include "processList.h"
 
-//Constants
+/* CONSTANTS */
 static const char PROMPT[] = "msh>>";
+static const int MAXSIZE = 1024;
 
-//Global vars
-int fgPID;
+/* GLOBAL VARIABLES */
+int fgPID; // PID of the forefround process
+char fgCommand[1024]; // Command string of the foreground process
+int parentPID; // PID of the main process
+struct tprocessList * processList; // List of background processes, in order to keep track of them.
 
-//Signal handlers
 
+/*SIGNAL HANDLERS*/
 void sigintHandler (int sig) {
-	if (getpid() == fgPID) {
-		exit(EXIT_FAILURE);
-	}
+	if ((getpid() == parentPID) && (fgPID>0))  kill(fgPID,SIGINT); //kill the fg process
 }
 void sigquitHandler (int sig) {
-	if (getpid() == fgPID) {
-		exit(EXIT_FAILURE);
+	if ((getpid() == parentPID) && (fgPID>0)) kill(fgPID,SIGQUIT); //kill the fg process
+}
+
+void sigtstpHandler(int sig){
+	if ((getpid() == parentPID) && (fgPID>0)) { //stop the fg process and add it to bg list
+		kill(fgPID ,SIGTSTP);
+		addProcess(processList, fgPID, fgCommand);
+		fgPID = 0;
 	}
 }
+
 
 /* MAIN LOOP: prints the prompt and reads the input */
 
 int main() {
 	//Init vars
-	char input[1024];
+	char input[MAXSIZE];
+	int status;
 	tline *tokens;
+	parentPID = getpid();
 	int exit = 0;
+	processList = newList();
 
 	//signal(SIGINT, sigintHandler); decomment once done "QUIT" command
 	signal(SIGQUIT, sigquitHandler);
+	signal(SIGTSTP, sigtstpHandler);
 
 	do{
 		printf(PROMPT);
 		if(fgets(input, sizeof(input), stdin)){
 			tokens = tokenize(input);
 		}
-		if((tokens->commands==NULL)||(tokens==NULL)){  //Tokenize fault. If not checked it will lead to segmentation fault in the case of empty redirect		
+		if((tokens==NULL)){//Tokenize fault. Can lead to segmentation fault if ignored
+		} else if (tokens->commands->filename==NULL){//Tokenize can't find a path: It's wrong typed or it's internal command. 		
+			char * ownCommand;
+			const char s[2] = " ";
+			input[strcspn(input, "\n")] = 0;		
+			ownCommand = strtok(input, s);
+			if (strcmp("cd",ownCommand)==0){
+				printf("Doing 'cd' command");
+				ownCommand = strtok(NULL, s);
+			} else if (strcmp("jobs",ownCommand)==0) {
+				printf("Doing 'jobs' command");
+			} else if (strcmp("fg",ownCommand)==0) {
+				printf("Doing 'jobs' command");
+			}
 		} else {
-			executeLine (tokens);
+			input[strcspn(input, "\n")] = 0;
+			executeLine (tokens, input);
 		}
+		
+		//If a fg process has spawned -> wait for it to finish or to be stoped. Set fgPID to 0 'cause there's no active fg process anymore.
+		if (fgPID>0) {		
+			waitpid(fgPID, &status, WUNTRACED);
+			fgPID = 0;
+		}
+
 	} while (!exit); //Ask for inputs until exit = true
 }
 
-int executeLine(tline *line){
+
+/* READ AND EXECUTE A TOKENIZED LINE */
+int executeLine(tline *line, char * command){
 	//init Var
 	int stdoutRedir = 1;
 	int stdinRedir = 0;
 	int stdErrorRedir = 2;
 	int status;
-	pid_t pid;
+	int pid;
+	char * uhu;
 
 	//check input redirection
 	if (line->redirect_input == NULL){
@@ -93,15 +132,13 @@ int executeLine(tline *line){
 		stdErrorRedir = file;
 	}
 
-	//Check if there're pipes
-	if (line->ncommands>1){
+	//For 0 to n pipes (works for standalone commands too!)	
+	if ((line->background)==0){
+		strcpy(fgCommand,command);
 		fgPID = forkPipes(stdinRedir, stdoutRedir, stdErrorRedir, line->ncommands, line->commands);
 	} else {
-		fgPID = forkPipes(stdinRedir, stdoutRedir, stdErrorRedir, line->ncommands, line->commands);
-		
+		addProcess(processList, forkPipes(stdinRedir, stdoutRedir, stdErrorRedir, line->ncommands, line->commands), command);
 	}
-	waitpid(fgPID, &status, 0);
-	fgPID = 0;
 
 	//Close and return
 	if (stdinRedir != 0) close (stdinRedir);
@@ -111,6 +148,7 @@ int executeLine(tline *line){
 	return 0;
 }
 
+/*FORK 1 to n commands using pipes: if there's just 1 command, forkPipes spawns it normally*/
 int forkPipes (int inFD, int outFD, int errFD, int n, tcommand *commands){	
 	int i, status;
 	int pid;
@@ -134,6 +172,7 @@ int forkPipes (int inFD, int outFD, int errFD, int n, tcommand *commands){
 }
 
 
+/*SPAWN A SINGLE PROCESS GIVEN ITS INPUT, OUTPUT AND ERROR FILE DESCRIPTORS*/
 int spawnProc (int in, int out, int err, tcommand *command){
 	int pid;
 	int status;
