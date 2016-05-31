@@ -27,13 +27,14 @@
 		}		
 		if ((list->size)>n){
 			int i;
-			for (i = 0; i < n; i = i + 1){
+			for (i = 0; i < n-1; i = i + 1){
 				process = process->next;
 			}
 			process2 = process->next;
 			process->next = process2->next;
-			free(process2);
 			if ((process->next)==NULL) list->last = process;
+			printf("elimino %s\n",process->commands);
+			free(process2);
 			return 0;
 		}
 	}
@@ -44,8 +45,6 @@
 		struct tprocess * process = malloc(sizeof(struct tprocess));
 		process->pid = pid;
 		strcpy(process->commands, commands);
-		printf("bien bien \n");
-		sleep(3);
 		process->next = NULL;
 
 		if ((list->size) > 0){

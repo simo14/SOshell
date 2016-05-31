@@ -27,13 +27,14 @@
 		}		
 		if ((list->size)>n){
 			int i;
-			for (i = 0; i < n; i = i + 1){
+			for (i = 0; i < n-1; i = i + 1){
 				process = process->next;
 			}
 			process2 = process->next;
 			process->next = process2->next;
-			free(process2);
 			if ((process->next)==NULL) list->last = process;
+			printf("elimino %s\n",process2->commands);
+			free(process2);
 			return 0;
 		}
 	}

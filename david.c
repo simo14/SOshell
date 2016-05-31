@@ -3,6 +3,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <linux/limits.h>
 #include <errno.h>
 #include <string.h>
 #include <fcntl.h>
@@ -11,6 +12,7 @@
 #include <string.h>
 #include "parser.h"
 #include "processList.h"
+
 
 /* CONSTANTS */
 static const char PROMPT[] = "msh>>";
@@ -21,7 +23,8 @@ int fgPID; // PID of the forefround process
 char fgCommand[1024]; // Command string of the foreground process
 int parentPID; // PID of the main process
 struct tprocessList * processList; // List of background processes, in order to keep track of them.
-
+int deadProcesses[1024]; //store the positions of dead Processes in processes list
+int deadProcessesSize;
 
 /*SIGNAL HANDLERS*/
 void sigintHandler (int sig) {
@@ -40,6 +43,7 @@ void sigtstpHandler(int sig){
 }
 
 
+
 /* MAIN LOOP: prints the prompt and reads the input */
 
 int main() {
@@ -50,8 +54,10 @@ int main() {
 	parentPID = getpid();
 	int exit = 0;
 	processList = newList();
+	memset(deadProcesses, 0, MAXSIZE*sizeof(int));
+	deadProcessesSize = 0;
 
-	//signal(SIGINT, sigintHandler); decomment once done "QUIT" command
+	signal(SIGINT, sigintHandler);
 	signal(SIGQUIT, sigquitHandler);
 	signal(SIGTSTP, sigtstpHandler);
 
@@ -60,7 +66,7 @@ int main() {
 		if(fgets(input, sizeof(input), stdin)){
 			tokens = tokenize(input);
 		}
-		if((tokens==NULL)){//Tokenize fault. Can lead to segmentation fault if ignored
+		if((tokens==NULL)||(tokens->commands==NULL)){//Tokenize fault. Can lead to segmentation fault if ignored
 		} else if (tokens->commands->filename==NULL){//Tokenize can't find a path: It's wrong typed or it's internal command. 		
 			char * ownCommand;
 			const char s[2] = " ";
@@ -68,12 +74,15 @@ int main() {
 			ownCommand = strtok(input, s);
 			if (strcmp("cd",ownCommand)==0){
 				printf("Doing 'cd' command \n");
-				ownCommand = strtok(NULL, s);
+				ownCommand = strtok(NULL, s); //cd sin implementar, pero ownCommand contiene ya la ruta que introduce el usuario
 			} else if (strcmp("jobs",ownCommand)==0) {
-				printf("Doing 'jobs' command \n");
+				jobs(processList);
 			} else if (strcmp("fg",ownCommand)==0) {
-				printf("Doing 'jobs' command \n");
+				printf("Doing 'fg' command \n");
+			} else if (strcmp("quit",ownCommand)==0) {
+				exit = 1;
 			}
+
 		} else {
 			input[strcspn(input, "\n")] = 0;
 			executeLine (tokens, input);
@@ -86,6 +95,7 @@ int main() {
 		}
 
 	} while (!exit); //Ask for inputs until exit = true
+	return 0;
 }
 
 
@@ -199,4 +209,109 @@ int spawnProc (int in, int out, int err, tcommand *command){
 	return pid;
 }
 
+/*SHOW JOBS*/
+int jobs (struct tprocessList * list){
+	if ((list==NULL)||(list->size==0)){
+	} else {
+		int i = 0;
+		char status[1024];
+		char command[1024];
+
+		//Clean processes from previous fg
+		for (i = 0;i<deadProcessesSize;i=i+1){
+			removeProcess (list,deadProcesses[i]-i);
+		}
+		memset(deadProcesses, 0, MAXSIZE*sizeof(int));
+		deadProcessesSize = 0;
+
+		i=0;
+		struct tprocess * process;
+		process = list->first;
+		while(process!=NULL){
+			if(getTextStatus(status,process->pid)==1){
+				deadProcesses[deadProcessesSize]=i;
+				deadProcessesSize = deadProcessesSize+1;
+			}
+			strcpy(command,process->commands);
+			process=process->next;
+			i = i+1;
+			printf("[%d] %s -------- %s\n",i,status,command);
+		}
+	}
+}
+
+/* RETURN TEXTUAL INFORMATION ABOUT THE STATUS OF A PROCESS GIVEN ITS PID*/
+int getTextStatus(char * text, int pid){
+	char filepath[PATH_MAX];
+	FILE * fp;
+	char * line = NULL;
+	size_t len = 0;
+	ssize_t read;
+	char * token;
+	snprintf(filepath,PATH_MAX,"/proc/%d/stat", pid);
+	fp = fopen(filepath,"r");
+	if (fp == NULL) exit(EXIT_FAILURE);
+
+	if ((read = getline(&line, &len, fp)) != -1) {
+		token = strtok(line, " ");
+		token = strtok(NULL, " ");
+		token = strtok(NULL, " ");
+		if (strcmp("R",token)==0){
+			strcpy(text,"Running");
+			fclose(fp);
+			return 0;
+		} else if (strcmp("S",token)==0) {
+			strcpy(text,"Sleeping");
+			fclose(fp);
+			return 0;
+		} else if (strcmp("D",token)==0) {
+			strcpy(text,"Waiting");
+			fclose(fp);
+			return 0;
+		}else if (strcmp("T",token)==0) {
+			strcpy(text,"Stopped");
+			fclose(fp);
+			return 0;
+		}else if (strcmp("t",token)==0) {
+			strcpy(text,"Tracing");
+			fclose(fp);
+			return 0;
+		}else if (strcmp("W",token)==0) {
+			strcpy(text,"Paging");
+			fclose(fp);
+			return 0;
+		}else if (strcmp("X",token)==0) {
+			strcpy(text,"Dead");
+			fclose(fp);
+			return 1;
+		}else if (strcmp("x",token)==0) {
+			strcpy(text,"Dead");
+			fclose(fp);
+			return 1;
+		}else if (strcmp("K",token)==0) {
+			strcpy(text,"Wakekill");
+			fclose(fp);
+			return 1;
+		}else if (strcmp("W",token)==0) {
+			strcpy(text,"Waking");
+			fclose(fp);
+			return 0;
+		}else if (strcmp("W",token)==0) {
+			strcpy(text,"Parked");
+			fclose(fp);
+			return 0;
+		}else if (strcmp("Z",token)==0) {
+			int status = 0;			
+			waitpid(pid,&status,WNOHANG);
+			if(WIFEXITED(status)==0){
+				strcpy(text,"Failed");
+			} else{
+				strcpy(text,"Done");
+			}
+			fclose(fp);
+			return 1;
+		}
+    	}
+	fclose(fp);
+}
 
