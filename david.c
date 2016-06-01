@@ -74,7 +74,16 @@ int main() {
 			ownCommand = strtok(input, s);
 			if (strcmp("cd",ownCommand)==0){
 				printf("Doing 'cd' command \n");
-				ownCommand = strtok(NULL, s); //cd sin implementar, pero ownCommand contiene ya la ruta que introduce el usuario
+				ownCommand = strtok(NULL, s); //get the argument
+				if (ownCommand == NULL){
+					if(chdir(HOME)!=0){
+						printf("Error: Path not valid");
+					}
+				} else {
+					if(chdir(ownCommand)!=0){
+						printf("Error: Path not valid");
+					}
+				}
 			} else if (strcmp("jobs",ownCommand)==0) {
 				jobs(processList);
 			} else if (strcmp("fg",ownCommand)==0) {
