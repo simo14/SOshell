@@ -1,13 +1,10 @@
 -- TO DOs:
 
 	- Soporte para procesos en background:
-		a) Estructura de datos para guardar lista de procesos en background
-		b) Comando jobs
 		c) Comando fg
 		d) OJO: ahora mismo almacenamos el PID del proceso en fg en fgPID (variable local) y lo usamos para hacer wait y para soportar SIGINT y SIGQUIT
 		e) OJO 2: habría que ver cómo tratamos los pipes para hacerlos compatibles con jobs (por el tema de que sólo esperamos al último proceso)
 
-	- Comando CD
 	- Adecuar los mensajes de error a lo que pone en el enunciado (a ser posible a través de constantes)
 
 
@@ -16,4 +13,7 @@
 
 	- En los pipes sólo esperamos al último proceso para sacar el prompt ya que es el único proceso que usa la salida estándard.
 	- Hay que pensar si los mandatos redirigidos a ficheros deben ejecutarse en fg y cómo hacer esto.
+	- Kill no mata a padre. 
+	- En jobs no elimino los procesos muertos hasta el 2 jobs porque entre medias el usuario querrá hacer algo y los numeros cambiarían si cambia la lista.
+
 	

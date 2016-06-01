@@ -15,5 +15,6 @@
 	struct tprocessList * newList();
 	int removeProcess (struct tprocessList * list, int n);
 	int addProcess (struct tprocessList * list, int pid, char * commands);
+	struct tprocess * getProcess (struct tprocessList * list, int position);
 	
 #endif

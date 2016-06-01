@@ -69,25 +69,40 @@ int main() {
 		if((tokens==NULL)||(tokens->commands==NULL)){//Tokenize fault. Can lead to segmentation fault if ignored
 		} else if (tokens->commands->filename==NULL){//Tokenize can't find a path: It's wrong typed or it's internal command. 		
 			char * ownCommand;
+			char * arguments;
 			const char s[2] = " ";
 			input[strcspn(input, "\n")] = 0;		
 			ownCommand = strtok(input, s);
+			arguments = strtok(NULL, s);//get the argument
 			if (strcmp("cd",ownCommand)==0){
-				printf("Doing 'cd' command \n");
-				ownCommand = strtok(NULL, s); //get the argument
-				if (ownCommand == NULL){
-					if(chdir(HOME)!=0){
+				if (arguments == NULL){
+					if(chdir(getenv("HOME"))!=0){
 						printf("Error: Path not valid");
 					}
 				} else {
-					if(chdir(ownCommand)!=0){
+					if(chdir(arguments)!=0){
 						printf("Error: Path not valid");
 					}
 				}
 			} else if (strcmp("jobs",ownCommand)==0) {
 				jobs(processList);
 			} else if (strcmp("fg",ownCommand)==0) {
-				printf("Doing 'fg' command \n");
+				int toFG = atoi (arguments);
+				struct tprocess * process = getProcess(processList,toFG);
+				if (process!=NULL){				
+					fgPID = process->pid;
+					strcpy(fgCommand, process->commands);
+					removeProcess(processList, toFG);
+					char statusFG[1024];
+					if ((getTextStatus(statusFG,fgPID))==1){
+						fgPID = 0;
+						fprintf(stderr,"[%i]+%s already finished\n", fgPID, fgCommand);
+					}
+				} else {
+					fprintf(stderr,"Not existing process\n");
+				}
+				
+				
 			} else if (strcmp("quit",ownCommand)==0) {
 				exit = 1;
 			}
@@ -244,12 +259,12 @@ int jobs (struct tprocessList * list){
 			strcpy(command,process->commands);
 			process=process->next;
 			i = i+1;
-			printf("[%d] %s -------- %s\n",i,status,command);
+			printf("[%d]+  %s                    %s\n",i-1,status,command);
 		}
 	}
 }
 
-/* RETURN TEXTUAL INFORMATION ABOUT THE STATUS OF A PROCESS GIVEN ITS PID*/
+/* RETURNS TEXTUAL INFORMATION ABOUT THE STATUS OF A PROCESS GIVEN ITS PID. Returns 0 if alive, 1 if dead*/
 int getTextStatus(char * text, int pid){
 	char filepath[PATH_MAX];
 	FILE * fp;
@@ -318,6 +333,9 @@ int getTextStatus(char * text, int pid){
 				strcpy(text,"Done");
 			}
 			fclose(fp);
+			return 1;
+		} else {
+			strcpy(text,"Unknown");
 			return 1;
 		}
     	}
