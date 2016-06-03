@@ -12,6 +12,7 @@
 #include <string.h>
 #include "parser.h"
 #include "processList.h"
+#include "david.h"
 
 
 /* CONSTANTS */
@@ -67,55 +68,83 @@ int main() {
 			tokens = tokenize(input);
 		}
 		if((tokens==NULL)||(tokens->commands==NULL)){//Tokenize fault. Can lead to segmentation fault if ignored
-		} else if (tokens->commands->filename==NULL){//Tokenize can't find a path: It's wrong typed or it's internal command. 		
-			char * ownCommand;
-			char * arguments;
-			const char s[2] = " ";
-			input[strcspn(input, "\n")] = 0;		
-			ownCommand = strtok(input, s);
-			arguments = strtok(NULL, s);//get the argument
-			if (strcmp("cd",ownCommand)==0){
-				if (arguments == NULL){
-					if(chdir(getenv("HOME"))!=0){
-						printf("Error: Path not valid");
-					}
-				} else {
-					if(chdir(arguments)!=0){
-						printf("Error: Path not valid");
-					}
-				}
-			} else if (strcmp("jobs",ownCommand)==0) {
-				jobs(processList);
-			} else if (strcmp("fg",ownCommand)==0) {
-				int toFG = atoi (arguments);
-				struct tprocess * process = getProcess(processList,toFG);
-				if (process!=NULL){				
-					fgPID = process->pid;
-					strcpy(fgCommand, process->commands);
-					removeProcess(processList, toFG);
-					char statusFG[1024];
-					if ((getTextStatus(statusFG,fgPID))==1){
-						fgPID = 0;
-						fprintf(stderr,"[%i]+%s already finished\n", fgPID, fgCommand);
-					}
-				} else {
-					fprintf(stderr,"Not existing process\n");
-				}
-				
-				
-			} else if (strcmp("quit",ownCommand)==0) {
-				exit = 1;
-			}
-
+			fprintf(stderr, "Error, secuencia no válida");
 		} else {
-			input[strcspn(input, "\n")] = 0;
-			executeLine (tokens, input);
-		}
+			int commandIsGood = 1;
+			int contador = 0;
+			tcommand *commandThatFails;
+			char *p;
+			while(contador<(tokens->ncommands)) {
+				tcommand *commands = (tokens->commands)+contador;
+				int newCheckIsGood = !((commands->filename) == NULL);
+				if(!newCheckIsGood) {
+					int cont=0;
+					input[strcspn(input, "\n")] = 0;
+					p=strtok(input," ");
+					while(p!=NULL && cont<contador){	
+        					p=strtok(NULL,"");
+       						cont++;
+    					}
+				}
+				commandIsGood = commandIsGood && newCheckIsGood;
+				contador++;
+			}
+			if(((tokens->commands->filename) == NULL)) {		//only the first one
+				char * ownCommand;
+				char * arguments;
+				const char s[2] = " ";
+				input[strcspn(input, "\n")] = 0;		
+				ownCommand = strtok(input, s);
+				arguments = strtok(NULL, s);	//get the argument
+				if (strcmp("cd",ownCommand)==0){
+					if (arguments == NULL){
+						if(chdir(getenv("HOME"))!=0){
+							printf("Error: Ruta no válida");
+						}
+					} else {
+						if(chdir(arguments)!=0){
+							printf("Error: Ruta no válida");
+						}
+					}
+				} else if (strcmp("jobs",ownCommand)==0) {
+					jobs(processList);
+				} else if (strcmp("fg",ownCommand)==0) {
+					int toFG = strtol (arguments, NULL, 36);
+					struct tprocess * process = getProcess(processList, toFG);
+					if (process!=NULL){				
+						fgPID = process->pid;
+						strcpy(fgCommand, process->commands);
+						removeProcess(processList, toFG);
+						char statusFG[1024];
+						if ((getTextStatus(statusFG,fgPID))==1){
+							fgPID = 0;
+							fprintf(stderr,"El processo [%i]+%s ya ha finalizado.\n", fgPID, fgCommand);
+						}
+					} else {
+						fprintf(stderr,"Error: No existe ningún proceso número %d\n", toFG);
+					}
+			
+			
+				} else if (strcmp("quit",ownCommand)==0) {
+					exit = 1;
+				} else {	//command doesn't exist
+					fprintf(stderr, "%s: No se encuentra el mandato.\n",ownCommand);
+				}
+
+			}
+			
+			if (commandIsGood) {
+				input[strcspn(input, "\n")] = 0;
+				executeLine (tokens, input);
+			} else {	//One of the commands (no the first one) is not from the shell
+				fprintf(stderr, "%s: No se encuentra el mandato.\n", p);
+			}
 		
-		//If a fg process has spawned -> wait for it to finish or to be stoped. Set fgPID to 0 'cause there's no active fg process anymore.
-		if (fgPID>0) {		
-			waitpid(fgPID, &status, WUNTRACED);
-			fgPID = 0;
+			//If a fg process has spawned -> wait for it to finish or to be stoped. Set fgPID to 0 'cause there's no active fg process anymore.
+			if (fgPID>0) {		
+				waitpid(fgPID, &status, WUNTRACED);
+				fgPID = 0;
+			}
 		}
 
 	} while (!exit); //Ask for inputs until exit = true
