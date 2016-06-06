@@ -67,8 +67,8 @@ int main() {
 		if(fgets(input, sizeof(input), stdin)){
 			tokens = tokenize(input);
 		}
-		if((tokens==NULL)||(tokens->commands==NULL)){//Tokenize fault. Can lead to segmentation fault if ignored
-			fprintf(stderr, "Error, secuencia no válida");
+		if((tokens==NULL)||(tokens->commands==NULL)){ //Tokenize fault. Can lead to segmentation fault if ignored
+			fprintf(stderr, "Error, la secuencia no es válida\n");
 		} else {
 			int commandIsGood = 1;
 			int contador = 0;
@@ -89,7 +89,7 @@ int main() {
 				commandIsGood = commandIsGood && newCheckIsGood;
 				contador++;
 			}
-			if(((tokens->commands->filename) == NULL)) {		//only the first one
+			if(((tokens->commands->filename) == NULL)) {		//First command was not recognized by tokens
 				char * ownCommand;
 				char * arguments;
 				const char s[2] = " ";
@@ -109,7 +109,7 @@ int main() {
 				} else if (strcmp("jobs",ownCommand)==0) {
 					jobs(processList);
 				} else if (strcmp("fg",ownCommand)==0) {
-					int toFG = strtol (arguments, NULL, 36);
+					int toFG = atoi (arguments);
 					struct tprocess * process = getProcess(processList, toFG);
 					if (process!=NULL){				
 						fgPID = process->pid;
@@ -127,19 +127,19 @@ int main() {
 			
 				} else if (strcmp("quit",ownCommand)==0) {
 					exit = 1;
-				} else {	//command doesn't exist
+				} else {	//Command doesn't exist
 					fprintf(stderr, "%s: No se encuentra el mandato.\n",ownCommand);
 				}
 
-			}
+			} else {	//The first command was not a special or invalid command
 			
-			if (commandIsGood) {
-				input[strcspn(input, "\n")] = 0;
-				executeLine (tokens, input);
-			} else {	//One of the commands (no the first one) is not from the shell
-				fprintf(stderr, "%s: No se encuentra el mandato.\n", p);
+				if (commandIsGood) {
+					input[strcspn(input, "\n")] = 0;
+					executeLine (tokens, input);
+				} else {	//One of the commands (no the first one) is a special or invalid one
+					fprintf(stderr, "%s: No se encuentra el mandato.\n", p);
+				}
 			}
-		
 			//If a fg process has spawned -> wait for it to finish or to be stoped. Set fgPID to 0 'cause there's no active fg process anymore.
 			if (fgPID>0) {		
 				waitpid(fgPID, &status, WUNTRACED);
@@ -167,7 +167,7 @@ int executeLine(tline *line, char * command){
 	}else{
 		int file = open(line->redirect_input, O_RDONLY);
 		if(file < 0) {
-			fprintf(stderr,"Input redirect error: File not found");
+			fprintf(stderr,"%s: Error. Archivo no encontrado.\n", line->redirect_input);
 			return 1;
 		}
 		stdinRedir = file;
@@ -178,7 +178,7 @@ int executeLine(tline *line, char * command){
 	}else{
 		int file = open(line->redirect_output, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 		if(file < 0) {
-			fprintf(stderr,"Output redirect error: File not found");
+			fprintf(stderr,"%s: Error. No se ha podido crear el archivo.\n", line->redirect_output);
 			return 1;
 		}
 		stdoutRedir = file;
@@ -189,7 +189,7 @@ int executeLine(tline *line, char * command){
 	}else{
 		int file = open(line->redirect_output, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU);
 		if(file < 0) if(file < 0) {
-			fprintf(stderr,"Error output redirect error: File not found");
+			fprintf(stderr,"%s: Error. No se ha podido crear el archivo.\n",  line->redirect_error);
 			return 1;
 		}
 		stdErrorRedir = file;
