@@ -17,3 +17,7 @@
 	- En jobs no elimino los procesos muertos hasta el 2 jobs porque entre medias el usuario querrá hacer algo y los numeros cambiarían si cambia la lista.
 
 	
+---Zombie waitpid pa q muera del todo.
+---memoria decir q tenemos library
+---padre espera por todos
+---
