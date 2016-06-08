@@ -1,9 +1,9 @@
 #ifndef processList_H_INCLUDED		//avoids including the same header file twice in the same compilation
 #define processList_H_INCLUDED
-	struct tprocess {
+	struct tsequence {		//a sequence of one or more commands
 		char commands[1024];
-		int *pid;
-		struct tprocess *next;
+		int pids[1024];
+		struct tsequence *next;
 	};
 
 	struct tprocessList {
@@ -14,7 +14,7 @@
 	
 	struct tprocessList * newList();
 	int removeProcess (struct tprocessList * list, int n);
-	int addProcess (struct tprocessList * list, int *pid, char * commands);
-	struct tprocess * getProcess (struct tprocessList * list, int position);
+	int addProcess (struct tprocessList * list, tsequence, char * commands);
+	struct tsequence * getProcess (struct tprocessList * list, int position);
 	
 #endif
