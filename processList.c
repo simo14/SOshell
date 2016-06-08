@@ -84,6 +84,9 @@
 		destination->next = destination->next;
 		int len = destination->ncommands;
 		int * newpids = malloc(len * sizeof(int));
-   		memcpy(newpids, origin->pids, len * sizeof(int));
+   		int i;
+		for (i = 0; i<len;i++){
+			newpids[i] = origin->pids[i];		
+		}
 		destination->pids = newpids;
 	}

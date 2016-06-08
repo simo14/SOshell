@@ -21,7 +21,6 @@ static const int MAXSIZE = 1024;
 
 /* GLOBAL VARIABLES */
 struct tsequence * fgSequence; 			// PIDs of the foregrounds processes
-char fgCommand[1024]; 			// Command string of the foreground process
 int parentPID; 				// PID of the main process
 struct tprocessList * processList; 	// List of background processes, in order to keep track of them.
 int deadProcesses[1024]; 		//store the positions of dead Processes in processes list
@@ -51,7 +50,7 @@ void sigtstpHandler(int sig){
 		for ( i = 0; i < fgSequence->ncommands; i++){	
 			kill(fgSequence->pids[i],SIGTSTP);
 		}
-		addProcess(processList, fgSequence->pids, fgCommand);
+		addProcess(processList, fgSequence->pids, fgSequence->commands);
 		free (fgSequence);
 		fgSequence = NULL;
 	}
@@ -117,11 +116,11 @@ int main() {
 				if (strcmp("cd",ownCommand)==0){
 					if (arguments == NULL){
 						if(chdir(getenv("HOME"))!=0){
-							printf("Error: Ruta no válida");
+							printf("Error: Ruta no válida\n");
 						}
 					} else {
 						if(chdir(arguments)!=0){
-							printf("Error: Ruta no válida");
+							printf("Error: Ruta no válida\n");
 						}
 					}
 				} else if (strcmp("jobs",ownCommand)==0) {
@@ -131,8 +130,6 @@ int main() {
 					struct tsequence * process = getProcess(processList, toFG);
 					if (process!=NULL){				
 						fgSequence=deepCopy(process);
-						//fgSequence->ncommands = 1;
-						strcpy(fgCommand, process->commands);
 						removeProcess(processList, toFG);
 						char statusFG[1024];
 						int i;
@@ -143,7 +140,7 @@ int main() {
 						if ((getTextStatus(statusFG, fgSequence))==1){	
 							free(fgSequence);							
 							fgSequence = NULL;
-							fprintf(stderr,"El processo [%i]+%s ya ha finalizado.\n", toFG, fgCommand);
+							fprintf(stderr,"El processo [%i]+%s ya ha finalizado.\n", toFG, fgSequence->commands);
 						}
 					} else {
 						fprintf(stderr,"Error: No existe ningún proceso número %d\n", toFG);
@@ -229,7 +226,6 @@ int executeLine(tline *line, char * command){
 
 	//For 0 to n pipes (works for standalone commands too!)	
 	if ((line->background)==0){
-		strcpy(fgCommand,command);
 		fgSequence->pids = forkPipes(stdinRedir, stdoutRedir, stdErrorRedir, line->ncommands, line->commands);
 	} else {
 		addProcess(processList, forkPipes(stdinRedir, stdoutRedir, stdErrorRedir, line->ncommands, line->commands), command);
