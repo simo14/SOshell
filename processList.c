@@ -40,13 +40,14 @@
 		}
 	}
 
-	int addProcess (struct tprocessList * list, int *pids, char * commands) {
+	int addProcess (struct tprocessList * list, int *pids, char * commands, int ncommands) {
 		if (list == NULL) return -1;
 		
 		struct tsequence * sequence = malloc(sizeof(struct tsequence));
 		sequence->pids = pids;
 		strcpy(sequence->commands, commands);
 		sequence->next = NULL;
+		sequence->ncommands = ncommands;
 
 		if ((list->size) > 0) {
 			list->last->next = sequence;

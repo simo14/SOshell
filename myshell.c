@@ -50,7 +50,10 @@ void sigtstpHandler(int sig){
 		for ( i = 0; i < fgSequence->ncommands; i++){	
 			kill(fgSequence->pids[i],SIGTSTP);
 		}
-		addProcess(processList, fgSequence->pids, fgSequence->commands);
+		struct tsequence * sequence;
+		sequence = malloc(sizeof(struct tsequence));
+		sequence = deepCopy(fgSequence);
+		addProcess(processList, sequence->pids, sequence->commands, sequence->ncommands);
 		free (fgSequence);
 		fgSequence = NULL;
 	}
@@ -138,10 +141,12 @@ int main() {
 						}
 						//getTextStatus checks status for all processes of the sequence and returns 1 if all of them are finished already
 						if ((getTextStatus(statusFG, fgSequence))==1){	
+							fprintf(stderr,"El processo [%i]+%s ya ha finalizado.\n", toFG, fgSequence->commands);
+							free(fgSequence->pids);
 							free(fgSequence);							
 							fgSequence = NULL;
-							fprintf(stderr,"El processo [%i]+%s ya ha finalizado.\n", toFG, fgSequence->commands);
 						}
+						fprintf(stdout,"%s\n",fgSequence->commands);
 					} else {
 						fprintf(stderr,"Error: No existe ningún proceso número %d\n", toFG);
 					}
@@ -228,7 +233,7 @@ int executeLine(tline *line, char * command){
 	if ((line->background)==0){
 		fgSequence->pids = forkPipes(stdinRedir, stdoutRedir, stdErrorRedir, line->ncommands, line->commands);
 	} else {
-		addProcess(processList, forkPipes(stdinRedir, stdoutRedir, stdErrorRedir, line->ncommands, line->commands), command);
+		addProcess(processList, forkPipes(stdinRedir, stdoutRedir, stdErrorRedir, line->ncommands, line->commands), command, line->ncommands);
 	}
 
 	//Close and return
@@ -395,7 +400,7 @@ int getSingleTextStatus(char * text, int pid){
 int getTextStatus(char * text, struct tsequence *sequence){
 	int i,returnValue;
 	returnValue = -1;
-	if (sequence==NULL) return -1;		
+	if (sequence==NULL) return -1;
 	for ( i = 0; i < sequence->ncommands; i++){	
 		returnValue = getSingleTextStatus(text, sequence->pids[i]);
 		if (returnValue == 0){

@@ -15,7 +15,7 @@
 	
 	struct tprocessList * newList();
 	int removeProcess (struct tprocessList * list, int n);
-	int addProcess (struct tprocessList * list, int *pids, char * commands);
+	int addProcess (struct tprocessList * list, int *pids, char * commands, int ncommads);
 	struct tsequence * getProcess (struct tprocessList * list, int position);
 	struct tsequence * deepCopy (struct tsequence * origin);
 	
