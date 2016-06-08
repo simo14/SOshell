@@ -237,7 +237,7 @@ int executeLine(tline *line, char * command){
 }
 
 /*FORK 1 to n commands using pipes: if there's just 1 command, forkPipes spawns it normally*/
-int* forkPipes (int inFD, int outFD, int errFD, int n, struct tcommand *commands){	
+int* forkPipes (int inFD, int outFD, int errFD, int n, tcommand *commands){	
 	int i, status;
 	int pid[n];
 	int in, out, fd [2];

@@ -21,7 +21,6 @@
 		process = list->first;
 		if ((n)==0) {
 			list->first = list->first->next;
-			free(process->pid);
 			free(process);
 			list->size = (list->size)-1;
 			return 0;
@@ -34,13 +33,12 @@
 			process2 = process->next;
 			process->next = process2->next;
 			if ((process->next)==NULL) list->last = process;
-			free(process2->pid);
 			free(process2);
 			return 0;
 		}
 	}
 
-	int addProcess (struct tprocessList * list, int *pid, char * commands) {
+	int addProcess (struct tprocessList * list, int pid, char * commands) {
 		if (list == NULL) return -1;
 		
 		struct tprocess * process = malloc(sizeof(struct tprocess));
