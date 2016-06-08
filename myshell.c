@@ -12,6 +12,7 @@
 #include <string.h>
 #include "parser.h"
 #include "processList.h"
+#include "myshell.h"
 
 
 /* CONSTANTS */
@@ -19,40 +20,40 @@ static const char PROMPT[] = "msh>>";
 static const int MAXSIZE = 1024;
 
 /* GLOBAL VARIABLES */
-int * fgPID; // PID of the forefround process
-char fgCommand[1024]; // Command string of the foreground process
-int parentPID; // PID of the main process
-struct tprocessList * processList; // List of background processes, in order to keep track of them.
-int deadProcesses[1024]; //store the positions of dead Processes in processes list
+struct tsequence * fgSequence; 			// PIDs of the foregrounds processes
+char fgCommand[1024]; 			// Command string of the foreground process
+int parentPID; 				// PID of the main process
+struct tprocessList * processList; 	// List of background processes, in order to keep track of them.
+int deadProcesses[1024]; 		//store the positions of dead Processes in processes list
 int deadProcessesSize;
 
 /*SIGNAL HANDLERS*/
 void sigintHandler (int sig) {
-	if ((getpid() == parentPID) && (fgPID!=NULL)) {
+	if ((getpid() == parentPID) && (fgSequence->pids!=NULL)) {
 		int i;
-		for ( i = 0; i < sizeof(fgPID) / sizeof(int); i++){	
-			kill(fgPID[i],SIGINT);
+		for ( i = 0; i < fgSequence->ncommands; i++){	
+			kill(fgSequence->pids[i],SIGINT);
 		}
 	}//kill the fg process
 }
 void sigquitHandler (int sig) {
-	if ((getpid() == parentPID) && (fgPID!=NULL)) {
+	if ((getpid() == parentPID) && (fgSequence->pids!=NULL)) {
 		int i;
-		for ( i = 0; i < sizeof(fgPID) / sizeof(int); i++){	
-			kill(fgPID[i],SIGQUIT);
+		for ( i = 0; i < fgSequence->ncommands; i++){	
+			kill(fgSequence->pids[i],SIGQUIT);
 		}
 	} //kill the fg process
 }
 
 void sigtstpHandler(int sig){
-	if ((getpid() == parentPID) && (fgPID!=NULL)) { //stop the fg process and add it to bg list
+	if ((getpid() == parentPID) && (fgSequence->pids!=NULL)) { //stop the fg process and add it to bg list
 		int i;
-		for ( i = 0; i < sizeof(fgPID) / sizeof(int); i++){	
-			kill(fgPID[i],SIGTSTP);
+		for ( i = 0; i < fgSequence->ncommands; i++){	
+			kill(fgSequence->pids[i],SIGTSTP);
 		}
-		addProcess(processList, fgPID, fgCommand);
-		free (fgPID);
-		fgPID = NULL;
+		addProcess(processList, fgSequence->pids, fgCommand);
+		free (fgSequence);
+		fgSequence = NULL;
 	}
 }
 
@@ -67,7 +68,7 @@ int main() {
 	tline *tokens;
 	parentPID = getpid();
 	int exit = 0;
-	fgPID = NULL;
+	fgSequence = NULL;
 	processList = newList();
 	memset(deadProcesses, 0, MAXSIZE*sizeof(int));
 	deadProcessesSize = 0;
@@ -127,19 +128,21 @@ int main() {
 					jobs(processList);
 				} else if (strcmp("fg",ownCommand)==0) {
 					int toFG = atoi (arguments);
-					struct tprocess * process = getProcess(processList, toFG);
+					struct tsequence * process = getProcess(processList, toFG);
 					if (process!=NULL){				
-						fgPID = process->pid;
+						fgSequence=deepCopy(process);
+						//fgSequence->ncommands = 1;
 						strcpy(fgCommand, process->commands);
 						removeProcess(processList, toFG);
 						char statusFG[1024];
 						int i;
-						for ( i = 0; i < sizeof(fgPID) / sizeof(int); i++){	
-							kill(fgPID[i],SIGQUIT);
+						for ( i = 0; i < fgSequence->ncommands; i++){	
+							kill(fgSequence->pids[i], SIGCONT);
 						}
-						if ((getTextStatus(statusFG,fgPID))==1){
-							free(fgPID);							
-							fgPID = NULL;
+						//getTextStatus checks status for all processes of the sequence and returns 1 if all of them are finished already
+						if ((getTextStatus(statusFG, fgSequence))==1){	
+							free(fgSequence);							
+							fgSequence = NULL;
 							fprintf(stderr,"El processo [%i]+%s ya ha finalizado.\n", toFG, fgCommand);
 						}
 					} else {
@@ -157,19 +160,23 @@ int main() {
 			
 				if (commandIsGood) {
 					input[strcspn(input, "\n")] = 0;
+					fgSequence = malloc(sizeof(struct tsequence));
+					strcpy(fgSequence->commands, input);		//we want the string without tokenize for later use of jobs
+					fgSequence->ncommands = tokens->ncommands;
+					fgSequence->next = NULL;
 					executeLine (tokens, input);
 				} else {	//One of the commands (no the first one) is a special or invalid one
 					fprintf(stderr, "%s: No se encuentra el mandato.\n", failedCommand);
 				}
 			}
-			//If a fg process has spawned -> wait for it to finish or to be stoped. Set fgPID to 0 'cause there's no active fg process anymore.
-			if (fgPID!=NULL) {
+			//If a fg process has spawned -> wait for it to finish or to be stoped. Set fgSequence to 0 'cause there's no active fg process anymore.
+			if (fgSequence!=NULL && fgSequence->pids!=NULL) {		//If pids is null it means than command was to be executed in background
 				int i;		
-				for ( i = 0; i < sizeof(fgPID) / sizeof(int); i++){	
-					waitpid(fgPID[i], &status, WUNTRACED);
+				for ( i = 0; i < fgSequence->ncommands; i++){	
+					waitpid(fgSequence->pids[i], &status, WUNTRACED);
 				}
-				free(fgPID);
-				fgPID = NULL;
+				free(fgSequence);
+				fgSequence = NULL;
 			}
 		}
 
@@ -223,7 +230,7 @@ int executeLine(tline *line, char * command){
 	//For 0 to n pipes (works for standalone commands too!)	
 	if ((line->background)==0){
 		strcpy(fgCommand,command);
-		fgPID = forkPipes(stdinRedir, stdoutRedir, stdErrorRedir, line->ncommands, line->commands);
+		fgSequence->pids = forkPipes(stdinRedir, stdoutRedir, stdErrorRedir, line->ncommands, line->commands);
 	} else {
 		addProcess(processList, forkPipes(stdinRedir, stdoutRedir, stdErrorRedir, line->ncommands, line->commands), command);
 	}
@@ -237,9 +244,9 @@ int executeLine(tline *line, char * command){
 }
 
 /*FORK 1 to n commands using pipes: if there's just 1 command, forkPipes spawns it normally*/
-int* forkPipes (int inFD, int outFD, int errFD, int n, struct tcommand *commands){	
+int* forkPipes (int inFD, int outFD, int errFD, int n, tcommand *commands){	
 	int i, status;
-	int pid[n];
+	int *pids = malloc(n * sizeof(int));		//For it to persist after function finishes, and so to be able to return it
 	int in, out, fd [2];
 	// First command uses the original FD
 	in = inFD;
@@ -248,7 +255,7 @@ int* forkPipes (int inFD, int outFD, int errFD, int n, struct tcommand *commands
 	for (i = 0; i < n - 1; ++i){
 		pipe (fd);
 		out = fd[1]; //out is the write end of the pipe
-		pid[i] = spawnProc (in, fd [1], errFD, commands + i);
+		pids[i] = spawnProc (in, fd [1], errFD, commands + i);
 		close (out);
 
 		//Save the read end of the pipe, the next child will read from there
@@ -256,8 +263,8 @@ int* forkPipes (int inFD, int outFD, int errFD, int n, struct tcommand *commands
 	}
 
 	//Execute the last one and return it's PID
-	pid[n-1] = spawnProc (in, outFD, errFD, (commands+n)-1);
-	return pid;
+	pids[n-1] = spawnProc (in, outFD, errFD, (commands+n)-1);
+	return pids;
 }
 
 
@@ -305,15 +312,15 @@ int jobs (struct tprocessList * list){
 		deadProcessesSize = 0;
 
 		i=0;
-		struct tprocess * process;
-		process = list->first;
-		while(process!=NULL){
-			if(getTextStatus(status,process->pid)==1){
+		struct tsequence * sequence;
+		sequence = list->first;
+		while(sequence!=NULL){
+			if(getTextStatus(status, sequence)==1){
 				deadProcesses[deadProcessesSize]=i;
 				deadProcessesSize = deadProcessesSize+1;
 			}
-			strcpy(command,process->commands);
-			process=process->next;
+			strcpy(command,sequence->commands);
+			sequence=sequence->next;
 			i = i+1;
 			printf("[%d]+  %s                    %s\n",i-1,status,command);
 		}
@@ -389,12 +396,12 @@ int getSingleTextStatus(char * text, int pid){
 	}
 	return returnValue;
 }
-int getTextStatus(char * text, int* pid){
+int getTextStatus(char * text, struct tsequence *sequence){
 	int i,returnValue;
 	returnValue = -1;
-	if (pid==NULL) return -1;		
-	for ( i = 0; i < sizeof(fgPID) / sizeof(int); i++){	
-		returnValue = getSingleTextStatus(text, pid[i]);
+	if (sequence==NULL) return -1;		
+	for ( i = 0; i < sequence->ncommands; i++){	
+		returnValue = getSingleTextStatus(text, sequence->pids[i]);
 		if (returnValue == 0){
 			return returnValue;
 		}
