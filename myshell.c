@@ -54,8 +54,6 @@ void sigtstpHandler(int sig){
 		sequence = malloc(sizeof(struct tsequence));
 		sequence = deepCopy(fgSequence);
 		addProcess(processList, sequence->pids, sequence->commands, sequence->ncommands);
-		free (fgSequence);
-		fgSequence = NULL;
 	}
 }
 
@@ -172,6 +170,7 @@ int main() {
 				}
 			}
 			//If a fg process has spawned -> wait for it to finish or to be stoped. Set fgSequence to 0 'cause there's no active fg process anymore.
+			
 			if (fgSequence!=NULL && fgSequence->pids!=NULL) {		//If pids is null it means than command was to be executed in background
 				int i;		
 				for ( i = 0; i < fgSequence->ncommands; i++){	
