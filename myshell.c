@@ -28,7 +28,7 @@ int deadProcessesSize;
 
 /*SIGNAL HANDLERS*/
 void sigintHandler (int sig) {
-	if ((getpid() == parentPID) && (fgSequence->pids!=NULL)) {
+	if ((fgSequence!=NULL) && (getpid() == parentPID) && (fgSequence->pids!=NULL)) {
 		int i;
 		for ( i = 0; i < fgSequence->ncommands; i++){	
 			kill(fgSequence->pids[i],SIGINT);
@@ -36,7 +36,7 @@ void sigintHandler (int sig) {
 	}//kill the fg process
 }
 void sigquitHandler (int sig) {
-	if ((getpid() == parentPID) && (fgSequence->pids!=NULL)) {
+	if ((fgSequence!=NULL) && (getpid() == parentPID) && (fgSequence->pids!=NULL)) {
 		int i;
 		for ( i = 0; i < fgSequence->ncommands; i++){	
 			kill(fgSequence->pids[i],SIGQUIT);
@@ -45,7 +45,7 @@ void sigquitHandler (int sig) {
 }
 
 void sigtstpHandler(int sig){
-	if ((getpid() == parentPID) && (fgSequence->pids!=NULL)) { //stop the fg process and add it to bg list
+	if ((fgSequence!=NULL) && (getpid() == parentPID) && (fgSequence->pids!=NULL)) { //stop the fg process and add it to bg list
 		int i;
 		for ( i = 0; i < fgSequence->ncommands; i++){	
 			kill(fgSequence->pids[i],SIGTSTP);
@@ -87,6 +87,7 @@ int main() {
 		if((tokens==NULL)||(tokens->commands==NULL)){ //Tokenize fault. Can lead to segmentation fault if ignored
 			fprintf(stdin, "\n");
 		} else {
+			/* Checking if all the commands are valid */
 			int commandIsGood = 1;
 			int contador = 0;
 			char *failedCommand;
@@ -107,6 +108,8 @@ int main() {
 				commandIsGood = commandIsGood && newCheckIsGood;
 				contador++;
 			}
+			
+			/* If the tokenize library don't fill the filename it may be a special command. Checks it and invoke them. */
 			if(((tokens->commands->filename) == NULL)) {		//First command was not recognized by tokens
 				char * ownCommand;
 				char * arguments;
@@ -114,7 +117,7 @@ int main() {
 				input[strcspn(input, "\n")] = 0;		
 				ownCommand = strtok(input, s);
 				arguments = strtok(NULL, s);	//get the argument
-				if (strcmp("cd",ownCommand)==0){
+				if (strcmp("cd",ownCommand)==0){ // CD command
 					if (arguments == NULL){
 						if(chdir(getenv("HOME"))!=0){
 							printf("Error: Ruta no válida\n");
@@ -124,40 +127,20 @@ int main() {
 							printf("Error: Ruta no válida\n");
 						}
 					}
-				} else if (strcmp("jobs",ownCommand)==0) {
+				} else if (strcmp("jobs",ownCommand)==0) { //JOBS command
 					jobs(processList);
-				} else if (strcmp("fg",ownCommand)==0) {
-					int toFG = atoi (arguments);
-					struct tsequence * process = getProcess(processList, toFG);
-					if (process!=NULL){				
-						fgSequence=deepCopy(process);
-						removeProcess(processList, toFG);
-						char statusFG[1024];
-						int i;
-						for ( i = 0; i < fgSequence->ncommands; i++){	
-							kill(fgSequence->pids[i], SIGCONT);
-						}
-						//getTextStatus checks status for all processes of the sequence and returns 1 if all of them are finished already
-						if ((getTextStatus(statusFG, fgSequence))==1){	
-							fprintf(stderr,"El processo [%i]+%s ya ha finalizado.\n", toFG, fgSequence->commands);
-							free(fgSequence->pids);
-							free(fgSequence);							
-							fgSequence = NULL;
-						}
-						fprintf(stdout,"%s\n",fgSequence->commands);
-					} else {
-						fprintf(stderr,"Error: No existe ningún proceso número %d\n", toFG);
-					}
-			
-			
-				} else if (strcmp("quit",ownCommand)==0) {
+				} else if (strcmp("fg",ownCommand)==0) {  // FG command
+					int ProcessToFG = atoi (arguments);
+					ProcessToFG = toFG(ProcessToFG);
+				} else if (strcmp("quit",ownCommand)==0) { // QUIT command
 					exit = 1;
 				} else {	//Command doesn't exist
 					fprintf(stderr, "%s: No se encuentra el mandato.\n",ownCommand);
 				}
 
 			} else {	//The first command was not a special or invalid command
-			
+				
+				/* Invoke commands*/
 				if (commandIsGood) {
 					input[strcspn(input, "\n")] = 0;
 					fgSequence = malloc(sizeof(struct tsequence));
@@ -338,7 +321,7 @@ int getSingleTextStatus(char * text, int pid){
 	char * token;
 	snprintf(filepath,PATH_MAX,"/proc/%d/stat", pid);
 	fp = fopen(filepath,"r");
-	if (fp == NULL) exit(EXIT_FAILURE);
+	if (fp == NULL) return 1;	//it was zombie and we waitedpid for it
 
 	if ((read = getline(&line, &len, fp)) != -1) {
 		token = strtok(line, " ");
@@ -396,6 +379,7 @@ int getSingleTextStatus(char * text, int pid){
 	}
 	return returnValue;
 }
+/* RETURNS TEXTUAL INFORMATION ABOUT THE STATUS OF A LIST OF PROCESS GIVEN ITS PIDs. Returns 0 if any of them is alive, 1 if dead*/
 int getTextStatus(char * text, struct tsequence *sequence){
 	int i,returnValue;
 	returnValue = -1;
@@ -408,4 +392,31 @@ int getTextStatus(char * text, struct tsequence *sequence){
 	}
 	return returnValue;
 }
+
+int toFG (int toFG){
+	struct tsequence * process = getProcess(processList, toFG);
+	if (process!=NULL){				
+		fgSequence=deepCopy(process);
+		removeProcess(processList, toFG);
+		char statusFG[1024];
+		int i;
+		for ( i = 0; i < fgSequence->ncommands; i++){	
+			kill(fgSequence->pids[i], SIGCONT);
+		}
+		//getTextStatus checks status for all processes of the sequence and returns 1 if all of them are finished already
+		if ((getTextStatus(statusFG, fgSequence))==1){	
+			fprintf(stderr,"El processo [%i]+%s ya ha finalizado.\n", toFG, fgSequence->commands);
+			free(fgSequence->pids);
+			free(fgSequence);							
+			fgSequence = NULL;
+			return 1;
+		}
+	} else {
+		fprintf(stderr,"Error: No existe ningún proceso número %d\n", toFG);
+		return 1;
+	}
+	return 0;		
+}
+
+
 
