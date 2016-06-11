@@ -26,7 +26,7 @@
 			list->size = (list->size)-1;
 			return 0;
 		}		
-		if ((list->size)>n) {
+		if (((list->size)>n) && (n>0)) {
 			int i;
 			for (i = 0; i < n-1; i = i + 1){
 				process = process->next;
@@ -67,7 +67,7 @@
 		struct tsequence * sequence;
 		int i = 0;
 
-		if ((list == NULL)||(list->size==0)||(position > list->size)) return NULL;
+		if ((list == NULL)||(list->size==0)||(position > ((list->size)-1))||(position < 0)) return NULL;
 
 		sequence = list->first;
 		while (sequence!=NULL) {

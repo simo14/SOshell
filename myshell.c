@@ -130,7 +130,13 @@ int main() {
 				} else if (strcmp("jobs",ownCommand)==0) { //JOBS command
 					jobs(processList);
 				} else if (strcmp("fg",ownCommand)==0) {  // FG command
-					int ProcessToFG = atoi (arguments);
+					int ProcessToFG;
+					if (arguments == NULL) {
+						ProcessToFG = -1;
+
+					} else {
+						ProcessToFG = atoi (arguments);
+					}
 					ProcessToFG = toFG(ProcessToFG);
 				} else if (strcmp("quit",ownCommand)==0) { // QUIT command
 					exit = 1;
@@ -393,7 +399,14 @@ int getTextStatus(char * text, struct tsequence *sequence){
 	return returnValue;
 }
 
-int toFG (int toFG){
+int toFG (int processNumber){
+	int toFG;
+	if (processNumber == -1){
+		toFG == (processList->size)-1;
+	} else {
+		toFG = processNumber;
+	}
+	
 	struct tsequence * process = getProcess(processList, toFG);
 	if (process!=NULL){				
 		fgSequence=deepCopy(process);
@@ -415,7 +428,7 @@ int toFG (int toFG){
 		fprintf(stderr,"Error: No existe ningún proceso número %d\n", toFG);
 		return 1;
 	}
-	return 0;		
+	return 0;	
 }
 
 
